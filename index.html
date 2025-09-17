@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Could This Actually Work? </title>
+<title> SBC crossword </title>
 <link rel="icon" href="eyes.png" type="image/png">
 <style>
     body { background-color:#000; color:#fff; font-family:sans-serif; text-align:center; }
@@ -21,39 +21,34 @@
 </head>
 <body>
 
-<h1>Could This Actually Work?</h1>
-
-//TODO: get double solutions working
-// finalize clues
-// get rid of color formatting for correct & wrong answers (EASY)
-// figure out what the solution message is (encrypt?) (HARD)
-// check if works on other computers 
-
+<h1>Your gifts are just around the corner!</h1>
 
 <div class="sidebar">
     <div class="clue-columns">
         <!-- Across clues column -->
         <div class="clues across">
             <h2>Across</h2>
-            <div>(1) with 11 down, operation performed on pancakes...</div>
-            <div>(5) Laura Jensen expletive</div>
+            <div>(1) With 11 down, operation performed on pancakes and the letters in each of the colored boxes.</div>
+            <div>(5) Laura Jensen expletive </div>
             <div>(7) head first, to Maria</div>
-            <div>(9) Alex Smith title</div>
+            <div>(9) Alex Smith title (abbr.) </div>
+            <div>(10) as well </div>
             <div>(12) summer program for S & Z</div>
+            <div>(13) Office on Melby St. in EC </div>
             <div>(14) Top of the hill, nowadays</div>
             <div>(15) Ending for ass, leg, and subs</div>
-            <div>(16) see 7 across</div>
+            <div>(16) see 7 down (inits)</div>
             <div>(17) all-encompassing baseball stat</div>
             <div>(18) Birgatzi & Mulaney, e.g.</div>
             <div>(23) Sticks carried by wizards</div>
-            <div>(24) with 5 down, these should be used before merging</div>
+            <div>(24) with 5 down, these should be used before merging? </div>
         </div>
 
         <!-- Down clues column -->
         <div class="clues down">
             <h2>Down</h2>
             <div>(1) ___ Four, or the Beatles</div>
-            <div>(2) $l+1$ is the ____ element of Σ(n+1)</div>
+            <div>(2) l+1 is the ____ element of Σ(n+1)</div>
             <div>(3) Wells who co-founded the NAACP</div>
             <div>(4) Campaigner, casually</div>
             <div>(5) See 24 across</div>
@@ -64,7 +59,7 @@
             <div>(11) see 1 across</div>
             <div>(19) Cell energy currency (abbr.)</div>
             <div>(20) Sophie Collier alma mater (abbr.)</div>
-            <div>(21) worst of the lot, colloquially (abbr.)</div>
+            <div>(21) Our place at Kubb Nationals (abbr.)</div>
             <div>(22) Org. for the Packers and the Jets</div>
         </div>
     </div>
@@ -161,6 +156,7 @@ for (let i=0; i<numRows; i++) {
     table.appendChild(tr);
 }
 let encryptedSolution = {}; // will be filled dynamically
+let secretMessageEnc = {}; // will be filled dynamically
 
 // Fetch the JSON file
 async function loadEncryptedSolution() {
@@ -172,9 +168,18 @@ async function loadEncryptedSolution() {
         console.error(err);
     }
 }
-
+async function loadEncryptedSuccess() {
+    try {
+        const win_response = await fetch('public_success.json'); // make sure outputs.json is in the same folder
+        if (!win_response.ok) throw new Error('Failed to load JSON: ' + win_response.status);
+        secretMessageEnc = await win_response.json();
+    } catch (err) {
+        console.error(err);
+    }
+}
 // Call it when page loads
 loadEncryptedSolution();
+loadEncryptedSuccess();
 
 // --- AES decryption helpers ---
 function base64ToBytes(str) {
@@ -237,6 +242,21 @@ async function checkCellAnswers(encList, userAnswer){
     return false; // no match
 }
 
+async function checkFullSolution(encList, userAnswer){
+    const win_decrypted = await decryptCell(encList[0], userAnswer);
+    if(win_decrypted){
+        return win_decrypted;
+    }
+    return null; // no match
+}
+
+function getFullSolutionString() {
+    const inputs = document.querySelectorAll("#crossword input");
+    let solution = "";
+    inputs.forEach(inp => solution += inp.value.trim().toLowerCase());
+    return solution;
+}
+
 // --- Submit handler ---
 document.getElementById("submit").addEventListener("click", async () => {
     // Get all crossword inputs
@@ -253,27 +273,39 @@ document.getElementById("submit").addEventListener("click", async () => {
     for (const [cell, encryptedAnswers] of Object.entries(encryptedSolution)) {
         const input = document.querySelector(`input[data-key='${cell}']`);
         if(!input) continue;
-        const userVal = input.value.trim();
-        console.log("Checking cell:", cell, "userVal:", userVal);
+        const userVal = input.value.trim().toLowerCase();
         const correct = await checkCellAnswers(encryptedAnswers,userVal);
         if (correct) {
-            input.style.backgroundColor = "#6b9fe4"; // blue for correct
+            //input.style.backgroundColor = "#6b9fe4"; // blue for correct
         } else {
-            input.style.backgroundColor = "#f88"; // red for wrong
+            //input.style.backgroundColor = "#f88"; // red for wrong
             incorrect.push({cell,input:userVal});
         }
-        console.log("Decrypting cell:", cell, "input:", userVal);
     }
 
-    if(incorrect.length===0){
-        alert("All correct! 🎉");
+    if (incorrect.length === 0) {
+        for (const [cell, encryptedSecret] of Object.entries(secretMessageEnc)) {
+            const password = getFullSolutionString(); // use whole grid as key;
+            const secret = await checkFullSolution(encryptedSecret, password);
+
+            if (secret) {
+                // replace all _ with spaces in secret
+                alert("Success!! " + secret.replace(/_/g, ' '));
+            } else {
+                alert("Crossword solved, but message decryption failed... contact SBCCC");
+            }
+        }
     } else {
-        let msg="Incorrect cells:\n";
-        incorrect.forEach(e=>{
-            msg+=`Cell ${e.cell}: "${e.input}"\n`;
-        });
+        let msg="Something's not quite right! \n";
+        // if len incorrect < or equal to 4: print a helpful message 
+        if(incorrect.length <= 4){
+            msg += 'across answers must supercede down answers\n';
+            alert(msg);
+        } else {
+            msg += 'Keep trying! \n';
+        }
         alert(msg);
-    }
+        }
 });
 </script>
 </body>
